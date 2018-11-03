@@ -12,8 +12,8 @@
 #include "mqtt_messaging.h"
 
 
-#define COM_PORT		"/dev/ttymxc1"
-#define VC210_BAUD		B57600
+#define DEFAULT_COM_PORT		(char *)"/dev/ttymxc1"
+#define VC210_BAUD				B57600
 
 
 #define NEW_SCK_HEADER_BYTE			0x02
@@ -134,7 +134,7 @@ public:
 	L2Comm( const char * port, int baud )
 	{
 		m_comPort = new SerialComm( port );
-		if( m_comPort )
+		if( m_comPort && (m_comPort->GetFd() > 0) )
 			m_comPort->initPort( baud );
 	}
 

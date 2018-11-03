@@ -10,6 +10,7 @@
 #include "config.h"
 #include "L3Comm.h"
 #include "L4Comm.h"
+#include "config.h"
 #include <linux/if.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -17,9 +18,6 @@
 
 
 #define SOFTWARE_VERSION (char *)"XXX-YYYYY-01 ECL-A"		// damned if I know what number to use
-
-BezelConfig g_bezelConfig;
-uint64_t g_macAddress = 0;
 
 
 static void saveMac()
@@ -52,7 +50,9 @@ static void initVC210CommThread(  )
 	saveMac();
 
 	// start up the rs485 / fastlan processing
-	L2Comm * vcL2Comms = new L2Comm( COM_PORT, VC210_BAUD );
+	char * port = (g_VC210CommPort == "") ? DEFAULT_COM_PORT : (char *)g_VC210CommPort.c_str();
+	g_VC210CommPort = port;
+	L2Comm * vcL2Comms = new L2Comm( port, VC210_BAUD );
 	if( vcL2Comms )
 	{
 		vcL2Comms->startVC210Comms();
@@ -74,9 +74,26 @@ static void initVC210CommThread(  )
 }
 
 
-int main( void )
+int main( int argc, char **argv )
 {
 	printf("!!!Hello There.  Welcome to the Wi-Fi Bezel Version: %s!!!\n", SOFTWARE_VERSION );
+
+	int c=0;
+
+	while( (c = getopt( argc, argv, "p:w:")) != -1 )
+	{
+		switch( c )
+		{
+		case 'p':
+			g_VC210CommPort = optarg;
+			printf( "got p: %s\n", g_VC210CommPort.c_str() );
+			break;
+		case 'w':
+			g_wifiAdapter = optarg;
+			printf( "got w: %s\n", g_wifiAdapter.c_str() );
+			break;
+		}
+	}
 
 	// do some basic inits
 

@@ -15,7 +15,6 @@ mutex STATUS_CORRELATION_ID::g_currentStatusCorrelationMtx;
 atomic<uint64_t> STATUS_CORRELATION_ID::s_currentStatusCorrelation;
 #endif
 
-extern BezelConfig g_bezelConfig;
 
 void L4AckFromCloud::Publish( string * topic, string * msg, int qos )
 {

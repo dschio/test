@@ -7,6 +7,10 @@
 
 #include "config.h"
 
+BezelConfig g_bezelConfig;
+uint64_t g_macAddress = 0;
+string g_VC210CommPort;
+string g_wifiAdapter;
 
 bool BezelConfig::CreateInitJson( FILE * fp )
 {

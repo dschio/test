@@ -28,15 +28,18 @@
 
 #include <sys/ioctl.h>
 
+#include "config.h"
+
 using namespace std;
 
-extern uint64_t g_macAddress;
 
 int getLQI()
 {
 	iwreq req;
 	iw_range *range;
 	iw_statistics *quality;
+	string wi_fi = (g_wifiAdapter == "") ? "wlan0" : g_wifiAdapter;
+	g_wifiAdapter = wi_fi;
 
 	int maxQual;
 	int presQual;
@@ -48,7 +51,7 @@ int getLQI()
 	req.u.data.pointer = buf;
 	req.u.data.length = sizeof(buf);
 	req.u.data.flags = 0;
-	strcpy(req.ifr_name, "wlan0");
+	strcpy(req.ifr_name, wi_fi.c_str());
 
 	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 

@@ -12,6 +12,13 @@
 
 #define CONFIG_FILE_NAME	"Config.json"
 
+class BezelConfig;
+
+extern BezelConfig g_bezelConfig;
+extern uint64_t g_macAddress;
+extern string g_VC210CommPort;
+extern string g_wifiAdapter;
+
 class Config: public JsonInterface
 {
 public:
