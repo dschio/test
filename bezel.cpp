@@ -11,14 +11,44 @@
 #include "L3Comm.h"
 #include "L4Comm.h"
 #include "config.h"
+#include "msg24hrStorage.h"
 #include <linux/if.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <list>
 
 #define SOFTWARE_VERSION (char *)"XXX-YYYYY-01 ECL-A"		// damned if I know what number to use
 
+void makeDirs()
+{
+	// make sure an default directories are here
+	//
+	// directory for the 24 hour storage files...
+	struct stat st;
+	if( stat( MSG_STORAGE_FILE_DIR, &st) == 0 )
+	{
+		if( (st.st_mode & S_IFDIR) != 0 )
+		{
+			printf("%s is present\n", MSG_STORAGE_FILE_DIR );
+			return;
+		}
+	}
+
+	if( mkdir( MSG_STORAGE_FILE_DIR,
+			S_IRUSR |
+			S_IWUSR |
+			S_IRGRP |
+			S_IWGRP |
+			S_IROTH |
+			S_IWOTH ) == -1 )
+		printf( "storage dir is fubar\n" );
+
+	return;
+}
 
 static void saveMac()
 {
@@ -33,8 +63,8 @@ static void saveMac()
 		for( i = 0;i < 6;++i )
 		{
 			uint8_t c = (uint8_t) s.ifr_addr.sa_data[i];
-			printf(" %02x", c );
-			mac += (((uint64_t) c) << (uint64_t)(i * 8));
+			printf(" %02x", c);
+			mac += (((uint64_t) c) << (uint64_t) (i * 8));
 		}
 		g_macAddress = mac;
 
@@ -44,15 +74,15 @@ static void saveMac()
 	return;
 }
 
-static void initVC210CommThread(  )
+static void initVC210CommThread()
 {
 	// grab the MAC address for later use
 	saveMac();
 
 	// start up the rs485 / fastlan processing
-	char * port = (g_VC210CommPort == "") ? DEFAULT_COM_PORT : (char *)g_VC210CommPort.c_str();
+	char * port = (g_VC210CommPort == "") ? DEFAULT_COM_PORT : (char *) g_VC210CommPort.c_str();
 	g_VC210CommPort = port;
-	L2Comm * vcL2Comms = new L2Comm( port, VC210_BAUD );
+	L2Comm * vcL2Comms = new L2Comm(port, VC210_BAUD);
 	if( vcL2Comms )
 	{
 		vcL2Comms->startVC210Comms();
@@ -73,36 +103,35 @@ static void initVC210CommThread(  )
 	}
 }
 
-
 int main( int argc, char **argv )
 {
-	printf("!!!Hello There.  Welcome to the Wi-Fi Bezel Version: %s!!!\n", SOFTWARE_VERSION );
+	printf("!!!Hello There.  Welcome to the Wi-Fi Bezel Version: %s!!!\n", SOFTWARE_VERSION);
 
-	int c=0;
+	int c = 0;
 
-	while( (c = getopt( argc, argv, "p:w:")) != -1 )
+	while( (c = getopt(argc, argv, "p:w:")) != -1 )
 	{
 		switch( c )
 		{
 		case 'p':
 			g_VC210CommPort = optarg;
-			printf( "got p: %s\n", g_VC210CommPort.c_str() );
+			printf("got p: %s\n", g_VC210CommPort.c_str());
 			break;
 		case 'w':
 			g_wifiAdapter = optarg;
-			printf( "got w: %s\n", g_wifiAdapter.c_str() );
+			printf("got w: %s\n", g_wifiAdapter.c_str());
 			break;
 		}
 	}
 
 	// do some basic inits
+	makeDirs();
 
 	// start the mosquitto MQTT stuff
 	mosquitto_lib_init();
 
 	// start up the thread to process data in / out to the VC210
 	initVC210CommThread();
-
 
 	while( true )
 	{
@@ -111,10 +140,6 @@ int main( int argc, char **argv )
 
 	mosquitto_lib_cleanup();
 
-
 	return EXIT_SUCCESS;
 }
-
-
-
 

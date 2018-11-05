@@ -11,6 +11,7 @@
 #include <sstream>
 #include <cstring>
 
+
 using namespace std;
 
 std::recursive_mutex Msg24hrStorage::s_storageFileMtx;
@@ -37,9 +38,9 @@ void Msg24hrStorage::AddRecord( void * recPtr, int recLen )
 	// build up a file name string based on this day and time
 	std::stringstream ss;
 
-	ss << "msgStore-" << (now->tm_year + 1900) << '-' << (now->tm_mon + 1) << '-' << now->tm_mday << '-' << now->tm_hour;
+	ss << MSG_STORAGE_FILE << (now->tm_year + 1900) << '-' << (now->tm_mon + 1) << '-' << now->tm_mday << '-' << now->tm_hour;
 
-	//cout << "writing to storage file " << ss.str() << '\n';
+	cout << "writing to storage file " << ss.str() << '\n';
 
 	msgStrFp.open( ss.str().c_str(), ios_base::app | ios_base::binary  );
 
@@ -65,6 +66,8 @@ void Msg24hrStorage::AddRecord( void * recPtr, int recLen )
 			std::lock_guard < std::recursive_mutex > lck(s_storageFileMtx);
 
 			msgStrFp.write( (const char *) mr, sizeOfThisRec );
+			if( ! msgStrFp.good() )
+				cout << "cant write storage file\n";
 			msgStrFp.flush();
 			msgStrFp.close();
 
@@ -72,6 +75,8 @@ void Msg24hrStorage::AddRecord( void * recPtr, int recLen )
 			delete  mr;
 		}
 	}
+	else
+		cout << "cant open storage file\n";
 
 }
 
@@ -134,7 +139,7 @@ bool Msg24hrStorage::OpenMessageStorageFile( int hoursBackFromNow )
 	// build up a file name string based on this day and time
 	std::stringstream ss;
 
-	ss << "msgStore-" << (now->tm_year + 1900) << '-' << (now->tm_mon + 1) << '-' << now->tm_mday << '-' << now->tm_hour;
+	ss << MSG_STORAGE_FILE << (now->tm_year + 1900) << '-' << (now->tm_mon + 1) << '-' << now->tm_mday << '-' << now->tm_hour;
 
 //	cout << "reading from " << ss.str() << '\n';
 
@@ -162,7 +167,7 @@ void Msg24hrStorage::DeleteMessageStorageFile( int hoursBackFromNow )
 	// build up a file name string based on this day and time
 	std::stringstream ss;
 
-	ss << "msgStore-" << (now->tm_year + 1900) << '-' << (now->tm_mon + 1) << '-' << now->tm_mday << '-' << now->tm_hour;
+	ss << MSG_STORAGE_FILE << (now->tm_year + 1900) << '-' << (now->tm_mon + 1) << '-' << now->tm_mday << '-' << now->tm_hour;
 
 //	cout << "reading from " << ss.str() << '\n';
 
@@ -180,52 +185,75 @@ void Msg24hrStorage::CloseMessageStorageFile()
 	m_streamReadFp.close();
 }
 
-void testTime()
+void Msg24hrStorage::GarbageCollector(sigval_t)
 {
-	Msg24hrStorage m;
+	printf("in garbage collector\n");
 
-	char buf[128];
+	typedef list<string> fnameVec;
+	typedef fnameVec::iterator fnameVecItr;
 
-	for( int i = 0;i < 20;i++ )
+	fnameVec v;
+	fnameVecItr vItr;
+
+	// get a list of all the files in this directory that have the message store prefix
+	DIR* dirp = opendir(".");
+	struct dirent * dp;
+	while( (dp = readdir(dirp)) != NULL )
 	{
-		sprintf(buf, "this is a test %d", i);
+		char * s = strstr( dp->d_name,  MSG_STORAGE_FILE );
 
-		printf( "adding: %d,  %s\n", strlen(buf), buf );
-
-		m.AddRecord(buf, strlen(buf));
-
-		//sleep(5);
+		if( s != nullptr && (s == dp->d_name) )
+			v.push_back(dp->d_name);
 	}
+	closedir(dirp);
 
-	// get a buffer for the message.
-	// (it will free itself)
-	vector <uint8_t> msgBuffer;
+	// get time now.  we're going to delete any files that pre-date this time by more than 24 hours
+	system_clock::time_point nowTime = system_clock::now();
 
-	for( int i = 24;i >= 0;i-- )
+
+//	time_t tt = system_clock::to_time_t(nowTime);
+//	struct tm * now = gmtime(&tt);
+//	cout << "it is now " << (now->tm_year + 1900) << '-' << (now->tm_mon + 1) << '-' << now->tm_mday << '-' << now->tm_hour << "\n";
+
+
+	// look through the list...
+	// we are going to wind up with a list of files that are in this directory that are prior to the last 24 hours, if any.
+	for( int i=0; i<24; i++ )
 	{
-		// walk the files
-		if( m.OpenMessageStorageFile(i) )
-		{
-			printf("got file at %d hours back\n", i);
+		// for a file from "i" hours ago
+		chrono::duration<int, std::ratio<60 * 60> > one_hour(i);
+		system_clock::time_point xHoursAgo = nowTime - one_hour;
 
-			while( m.GetRecordFromStorage( msgBuffer ) )
+		time_t tt = system_clock::to_time_t(xHoursAgo);
+		struct tm * check = gmtime(&tt);
+
+		// build up a file name string based on that day and time
+		std::stringstream ss;
+
+		ss << MSG_STORAGE_FILE << (check->tm_year + 1900) << '-' << (check->tm_mon + 1) << '-' << check->tm_mday << '-' << check->tm_hour;
+
+		// now look through the list to see if the file is in there.
+		// if it is, remove it from the list.
+		vItr = v.begin();
+		do
+		{
+			if( (*vItr) == ss. str() )
 			{
-				// we got the message here!  do what you will.
-
-				printf("from file: %d:\n", i);
-
-				Msg24hrStorage::Msg24hrStorageRecord * gotMsg = (Msg24hrStorage::Msg24hrStorageRecord *) &msgBuffer[0];
-				for( uint16_t j=0; j< gotMsg->m_recordSize - sizeof(Msg24hrStorage::Msg24hrStorageRecord); j++ )
-					printf( "%c", (char) gotMsg->m_record[j]);
-				printf( "\n" );
+				if( (vItr = v.erase(vItr)) == v.end() )
+					continue;
 			}
-
-			m.CloseMessageStorageFile();
-
-		}
-		else
-		{
-			printf("no file for %d\n", i);
-		}
+			vItr++;
+		} while( vItr != v.end() );
 	}
+
+	// once we are here, the list only contains the names of files that are beyond the 24 hour limit.
+	//cout << "remaining to be removed: " << "\n";
+	for( vItr = v.begin(); vItr != v.end(); ++vItr )
+	{
+		// so remove those files
+		//cout << "removing..." << (*vItr).c_str() << "\n";
+		remove( (*vItr).c_str() );
+	}
+
+
 }

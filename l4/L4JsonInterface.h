@@ -23,7 +23,7 @@ extern int getLQI();
 using namespace std;
 
 #define MAX_RECIPES			20
-#define CLOUD_RETRY_TIME	3000//0	// msec
+#define CLOUD_RETRY_TIME	30000	// msec
 #define CLOUD_RETRY_COUNT	2		// original + 2 retries
 
 extern class EVENT_TABLE g_EventTable;

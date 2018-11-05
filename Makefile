@@ -36,7 +36,8 @@ DEPS := $(OBJS:.o=.d)
 
 LIBS += -pthread \
 		-L ./mosquitto/cpp ./mosquitto/cpp/libmosquittopp.a \
-		-L ./mosquitto    ./mosquitto/libmosquitto.a
+		-L ./mosquitto    ./mosquitto/libmosquitto.a \
+		-lrt
 
 		
 #		-L /home/ds/workspace/apps/zeromq-4.2.3/src/.libs -lzmq \

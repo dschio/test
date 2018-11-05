@@ -22,6 +22,7 @@
 #include <vector>
 
 
+
 #pragma pack(1)
 
 
@@ -58,50 +59,29 @@ public:
 		// the mqtt recevier that subscribes to messages from the cloud (and publishes back to the cloud)
 		m_rcvMsgL4_FromCloud = new L4CommMessageFromCloud((char *) "L4CommCloud", this);
 		m_rcvMsgL4_FromCloud->Init();
-	}
 
-	void dump24hourMessages()
-	{
-		vector<uint8_t> msgBuffer;
-		Msg24hrStorage z;
 
-		for( int i = 24;i >= 0;i-- )
+		// also start up a garbage collector to clear out old 24hr storage files if need be
 		{
-			z.LockMessageFile( true );
-			// walk the files
-			if( z.OpenMessageStorageFile(i) )
-			{
-				printf("dump24hourMessages:: got file at %d hours back\n", i);
+		    timer_t timerid;
+		    struct itimerspec ts;
+		    struct sigevent sev;
 
-				while( z.GetRecordFromStorage(msgBuffer) )
-				{
-					// we got the message here!  do what you will.
+		    // Specify a repeating timer that runs the 24 hour storage garbage collector
+		    ts.it_value.tv_sec = (60 * 10);		// first pass on garbage collection in 10 minutes
+		    ts.it_value.tv_nsec = 0;
+		    ts.it_interval.tv_sec = (60 * 60);	// then every hour after the first
+		    ts.it_interval.tv_nsec = 0;
 
-					// cast the message part to point to the original storage level format
-					Msg24hrStorage::Msg24hrStorageRecord * gotMsg = (Msg24hrStorage::Msg24hrStorageRecord *) &msgBuffer[0];
 
-					// the deserialize it into the actual desired message format
-					L4AckdMsgInfo mmm;
-					mmm.Deserialize((char *) &gotMsg->m_record[0]);
+		    sev.sigev_notify = SIGEV_THREAD;
+		    sev.sigev_notify_function = Msg24hrStorage::GarbageCollector;
+		    sev.sigev_notify_attributes = NULL;
 
-					// send it out as a new message
-					m_ack->AddAckedMessage( mmm.GetMsgPtr(), mmm.GetTopicPtr(), mmm.GetQos(), false );
-				}
+		    timer_create(CLOCK_REALTIME, &sev, &timerid);
 
-				z.CloseMessageStorageFile();
-
-				// at this point, all the messages from this file have been queued for transmission
-				// so we can delete the file.
-				z.DeleteMessageStorageFile(i);
-
-			}
-			else
-			{
-				printf("no file for %d\n", i);
-			}
-			z.LockMessageFile( false );
+		    timer_settime(timerid, 0, &ts, 0);
 		}
-
 	}
 
 	void PublishToCloud( char * topic, int size, char * msg, int qos = QOS_0 )
@@ -114,6 +94,22 @@ public:
 		m_rcvMsgL4_From_L3_To_Cloud->publish(topic, size, msg, qos);
 	}
 
+	void AddAckedMessage( JSON_MESSAGE_BASE * msg, string & topic, int qos, bool save )
+	{
+		m_ack->AddAckedMessage( msg, topic, qos, save );
+	}
+
+	void IncomingAckMessage( string & corrId, uint16_t errorCode )
+	{
+		m_ack->IncomingAckMessage( corrId, errorCode );
+	}
+
+	void dump24hourMessages();
+
+
+
+
+private:
 	L4CommMessageFromL3ToL4 * m_rcvMsgL4_From_L3_To_Cloud;
 	L4CommMessageFromCloud * m_rcvMsgL4_FromCloud;
 	L4AckFromCloud * m_ack;

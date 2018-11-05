@@ -256,7 +256,7 @@ void L4CommMessageFromL3ToL4::processPacket( COMMS_EVENT * packet )
 	if( msgToSend )
 	{
 		// note: the called function is expected to make a copy of the message, so we can delete the pointer here
-		m_parentPtr->m_ack->AddAckedMessage(msgToSend, topic, QOS_2, true);		// TODO:  clean this up
+		m_parentPtr->AddAckedMessage(msgToSend, topic, QOS_2, true);		// TODO:  clean this up
 		delete msgToSend;
 	}
 
@@ -392,7 +392,7 @@ void L4CommMessageFromCloud::processPacket( void * packet, int len )
 				uint16_t errCode;
 				if( doc->HasMember("errorCode") )
 					errCode = ((*doc)["errorCode"]).GetUint();
-				m_parentPtr->m_ack->IncomingAckMessage(corrId, errCode);		// TODO:  clean this up
+				m_parentPtr->IncomingAckMessage(corrId, errCode);		// TODO:  clean this up
 				return;
 			}
 
@@ -415,4 +415,52 @@ void L4CommMessageFromCloud::processPacket( void * packet, int len )
 
 //\	printf( "%s\n", msg.RetrieveJsonFormatMessage(NULL, USE_PRETTY).c_str());
 }
+
+
+//////////////////////////////
+void L4Comm::dump24hourMessages()
+{
+	vector<uint8_t> msgBuffer;
+	Msg24hrStorage z;
+
+	for( int i = 24;i >= 0;i-- )
+	{
+		z.LockMessageFile( true );
+		// walk the files
+		if( z.OpenMessageStorageFile(i) )
+		{
+			printf("dump24hourMessages:: got file at %d hours back\n", i);
+
+			while( z.GetRecordFromStorage(msgBuffer) )
+			{
+				// we got the message here!  do what you will.
+
+				// cast the message part to point to the original storage level format
+				Msg24hrStorage::Msg24hrStorageRecord * gotMsg = (Msg24hrStorage::Msg24hrStorageRecord *) &msgBuffer[0];
+
+				// the deserialize it into the actual desired message format
+				L4AckdMsgInfo mmm;
+				mmm.Deserialize((char *) &gotMsg->m_record[0]);
+
+				// send it out as a new message
+				m_ack->AddAckedMessage( mmm.GetMsgPtr(), mmm.GetTopicPtr(), mmm.GetQos(), false );
+			}
+
+			z.CloseMessageStorageFile();
+
+			// at this point, all the messages from this file have been queued for transmission
+			// so we can delete the file.
+			z.DeleteMessageStorageFile(i);
+
+		}
+		else
+		{
+			printf("no file for %d\n", i);
+		}
+		z.LockMessageFile( false );
+	}
+
+}
+
+
 

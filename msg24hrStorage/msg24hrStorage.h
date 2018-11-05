@@ -14,8 +14,15 @@
 #include <mutex>
 #include <fstream>
 #include <vector>
+#include <signal.h>
+#include <list>
+#include <dirent.h>
+
 
 #define MAX_STORED_MSG_SIZE 4096			// arbitrary
+#define MSG_STORAGE_FILE_DIR	 	"/MsgStorageDir"
+#define MSG_STORAGE_FILE_PREFIX 	"msgStore-"
+#define MSG_STORAGE_FILE			MSG_STORAGE_FILE_DIR "/" MSG_STORAGE_FILE_PREFIX
 
 using namespace std;
 using namespace std::chrono;
@@ -51,6 +58,8 @@ public:
 	bool OpenMessageStorageFile( int hoursBackFromNow );
 	void CloseMessageStorageFile();
 	void DeleteMessageStorageFile( int hoursBackFromNow );
+
+	static void GarbageCollector(sigval_t);
 
 	void LockMessageFile( bool lock )
 	{
